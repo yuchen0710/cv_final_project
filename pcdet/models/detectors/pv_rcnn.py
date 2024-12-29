@@ -11,6 +11,7 @@ class PVRCNN(Detector3DTemplate):
             batch_dict = cur_module(batch_dict)
 
         if self.training:
+            # pred_dicts = self.gen_pred(batch_dict)
             loss, tb_dict, disp_dict = self.get_training_loss()
 
             ret_dict = {

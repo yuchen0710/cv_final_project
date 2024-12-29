@@ -15,7 +15,7 @@ class PVRCNNHead(RoIHeadTemplate):
         )
 
         GRID_SIZE = self.model_cfg.ROI_GRID_POOL.GRID_SIZE
-        pre_channel = GRID_SIZE * GRID_SIZE * GRID_SIZE * num_c_out
+        pre_channel = GRID_SIZE * GRID_SIZE * 2 * num_c_out
 
         shared_fc_list = []
         for k in range(0, self.model_cfg.SHARED_FC.__len__()):
@@ -103,9 +103,13 @@ class PVRCNNHead(RoIHeadTemplate):
         )  # (M1 + M2 ..., C)
 
         pooled_features = pooled_features.view(
-            -1, self.model_cfg.ROI_GRID_POOL.GRID_SIZE ** 3,
+            -1, self.model_cfg.ROI_GRID_POOL.GRID_SIZE * self.model_cfg.ROI_GRID_POOL.GRID_SIZE * 2,
             pooled_features.shape[-1]
-        )  # (BxN, 6x6x6, C)
+        )  # (BxN, 6x6x2, C)
+        # pooled_features = pooled_features.view(
+        #     -1, self.model_cfg.ROI_GRID_POOL.GRID_SIZE ** 3,
+        #     pooled_features.shape[-1]
+        # )  # (BxN, 6x6x6, C)
         return pooled_features
 
     def get_global_grid_points_of_roi(self, rois, grid_size):
@@ -122,7 +126,8 @@ class PVRCNNHead(RoIHeadTemplate):
 
     @staticmethod
     def get_dense_grid_points(rois, batch_size_rcnn, grid_size):
-        faked_features = rois.new_ones((grid_size, grid_size, grid_size))
+        faked_features = rois.new_ones((grid_size, grid_size, 2))
+        # faked_features = rois.new_ones((grid_size, grid_size, grid_size))
         dense_idx = faked_features.nonzero()  # (N, 3) [x_idx, y_idx, z_idx]
         dense_idx = dense_idx.repeat(batch_size_rcnn, 1, 1).float()  # (B, 6x6x6, 3)
 
@@ -152,8 +157,11 @@ class PVRCNNHead(RoIHeadTemplate):
 
         grid_size = self.model_cfg.ROI_GRID_POOL.GRID_SIZE
         batch_size_rcnn = pooled_features.shape[0]
+        #   Set the grid size as the Non-Spherical Grids
         pooled_features = pooled_features.permute(0, 2, 1).\
-            contiguous().view(batch_size_rcnn, -1, grid_size, grid_size, grid_size)  # (BxN, C, 6, 6, 6)
+            contiguous().view(batch_size_rcnn, -1, grid_size, grid_size, 2)  # (BxN, C, 6, 6, 6)
+        # pooled_features = pooled_features.permute(0, 2, 1).\
+        #     contiguous().view(batch_size_rcnn, -1, grid_size, grid_size, grid_size)  # (BxN, C, 6, 6, 6)
 
         shared_features = self.shared_fc_layer(pooled_features.view(batch_size_rcnn, -1, 1))
         rcnn_cls = self.cls_layers(shared_features).transpose(1, 2).contiguous().squeeze(dim=1)  # (B, 1 or 2)
